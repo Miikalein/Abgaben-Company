@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Company Abgaben – Narco City RP</title>
+<style>
+:root{--bg:#08090c;--panel:#111318;--line:#2a2e37;--text:#f4f5f7;--muted:#9298a5;--gold:#c9a227;--green:#29cf8b;--red:#ef5754;--yellow:#e6b94e}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top right,#201b0c 0,#08090c 42%);color:var(--text);font-family:Arial,Helvetica,sans-serif}
+.app{display:grid;grid-template-columns:245px 1fr;min-height:100vh}.side{background:#0d0e12;border-right:1px solid var(--line);padding:22px 15px}.brand{font-size:21px;font-weight:900}.brand small{display:block;color:var(--gold);font-size:10px;letter-spacing:2px;margin-top:5px}.nav{margin-top:28px}.nav button{width:100%;text-align:left;background:none;border:0;color:#b8bdc7;padding:12px;border-radius:9px;cursor:pointer;margin:3px 0}.nav button.active,.nav button:hover{background:#1b1d23;color:#fff}.main{width:100%;max-width:1500px;margin:auto;padding:28px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px}.top h1{margin:0;font-size:28px}.muted{color:var(--muted);font-size:13px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.card,.panel{background:linear-gradient(180deg,#15171d,#111318);border:1px solid var(--line);border-radius:14px}.card{padding:18px}.num{font-size:29px;font-weight:800;margin-top:7px}.green{color:var(--green)}.red{color:var(--red)}.yellow{color:var(--yellow)}.panel{padding:18px;margin-top:18px}.panel h2{font-size:17px;margin:0 0 14px}.toolbar{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px}input,select,textarea{background:#0c0e12;color:#fff;border:1px solid #363b46;border-radius:8px;padding:10px 11px;outline:none;pointer-events:auto;user-select:text}textarea{min-height:90px;resize:vertical}button{background:#191c23;color:#eee;border:1px solid #383d48;border-radius:8px;padding:10px 12px;cursor:pointer}button.primary{background:var(--gold);color:#111;border-color:var(--gold);font-weight:800}.toolbar>*{flex:1;min-width:150px}table{width:100%;border-collapse:collapse}th,td{padding:12px 9px;border-bottom:1px solid var(--line);text-align:left;font-size:13px}th{color:#8e94a0;font-size:11px;text-transform:uppercase}.badge{display:inline-flex;padding:5px 8px;border-radius:99px;font-size:11px;font-weight:800}.b-green{background:#093b2b;color:#6af0ba}.b-red{background:#45191a;color:#ff8d8a}.b-yellow{background:#45340f;color:#ffd66e}.actions{display:flex;gap:5px}.empty{text-align:center;color:var(--muted);padding:35px}.modal{position:fixed;inset:0;z-index:99999;background:#000b;display:none;align-items:center;justify-content:center;padding:20px;pointer-events:none}.modal.show{display:flex;pointer-events:auto}.box{width:min(540px,100%);position:relative;z-index:100000;background:#15171d;border:1px solid var(--line);border-radius:14px;padding:20px;pointer-events:auto}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.full{grid-column:1/-1}.footer{color:#666c78;font-size:11px;margin-top:30px}.error{border-color:#743332;background:#241214;color:#ffaaa7}
+@media(max-width:850px){.app{display:block}.side{border-right:0;border-bottom:1px solid var(--line)}.cards{grid-template-columns:1fr 1fr}.main{padding:16px}}@media(max-width:550px){.cards{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.full{grid-column:auto}.panel{overflow:auto}table{min-width:900px}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="modal" id="modal"><div class="box" id="modalBox"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const CONFIG={
+  url:"https://oxvxbztdlpfczvwbzzkm.supabase.co",
+  key:"sb_publishable_REY2sc44uHR7C30XbnAL1w_B2HHBYWm"
+};
+const sb=supabase.createClient(CONFIG.url,CONFIG.key);
+let tab="dashboard", allEntries=[];
+
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+function badge(s){return s==="done"?'<span class="badge b-green">Metall abgegeben</span>':s==="missing"?'<span class="badge b-red">Nicht abgegeben</span>':'<span class="badge b-yellow">Freigestellt</span>'}
+function currentWeek(){let d=new Date(),t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())),day=t.getUTCDay()||7;t.setUTCDate(t.getUTCDate()+4-day);let ys=new Date(Date.UTC(t.getUTCFullYear(),0,1));return t.getUTCFullYear()+"-KW"+String(Math.ceil((((t-ys)/86400000)+1)/7)).padStart(2,"0")}
+
+function app(){
+ document.getElementById("app").innerHTML=`<div class="app">
+ <aside class="side"><div class="brand">COMPANY ABGABEN<small>NARCO CITY • ROLEPLAY</small></div>
+ <div class="nav">
+ <button id="nav-dashboard" onclick="setTab('dashboard')">▣ Dashboard</button>
+ <button id="nav-abgaben" onclick="setTab('abgaben')">◷ Wochenabgaben</button>
+ <button id="nav-mitarbeiter" onclick="setTab('mitarbeiter')">♙ Mitarbeiter</button>
+ <button id="nav-historie" onclick="setTab('historie')">▤ Historie</button>
+ </div>
+ <div class="footer">Öffentliche Online-Version • Gemeinsame Datenbank</div></aside>
+ <main class="main" id="content"></main></div>`;
+ render();
+}
+function setTab(x){tab=x;render()}
+async function getEntries(){
+ try{
+  const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error("Zeitüberschreitung bei der Verbindung zu Supabase.")),10000));
+  const request=sb.from("abgaben").select("*").order("name");
+  const r=await Promise.race([request,timeout]);
+  if(r.error){showError(r.error.message);return[]}
+  return r.data||[];
+ }catch(err){showError(err?.message||String(err));return[]}
+}
+function showError(msg){document.getElementById("content").innerHTML=`<div class="panel error"><b>Supabase-Fehler:</b><br>${esc(msg)}<br><br>Bitte prüfe die RLS-Policies der Tabelle <b>abgaben</b>.</div>`}
+async function rows(a){
+ if(!a.length)return '<div class="empty">Keine Einträge vorhanden.</div>';
+ return `<table><thead><tr><th>Mitarbeiter</th><th>Char-ID</th><th>Status</th><th>Metall</th><th>Notiz</th><th>Bearbeitet von</th><th>Aktionen</th></tr></thead><tbody>`+
+ a.map(e=>`<tr><td><b>${esc(e.name)}</b></td><td>${esc(e.char_id||"–")}</td><td>${badge(e.status)}</td><td>${e.amount?esc(e.amount)+" Stück":"–"}</td><td>${esc(e.note||"–")}</td><td>${esc(e.edited_by||"–")}</td><td><div class="actions"><button onclick="openEntry('${e.id}')">Bearbeiten</button><button onclick="delEntry('${e.id}')">Löschen</button></div></td></tr>`).join("")+
+ `</tbody></table>`;
+}
+async function render(){
+ document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
+ const b=document.getElementById("nav-"+tab);if(b)b.classList.add("active");
+ if(tab==="dashboard")dashboard();else if(tab==="abgaben")abgaben();else if(tab==="mitarbeiter")mitarbeiter();else historie();
+}
+async function dashboard(){
+ document.getElementById("content").innerHTML=`<div class="top"><div><h1>Wochenabgaben</h1><div class="muted">Verbindung zur Online-Datenbank wird hergestellt…</div></div></div><div class="panel"><div class="empty">Lade Daten…</div></div>`;
+ let a=await getEntries(),w=currentWeek(),x=a.filter(e=>e.week===w);
+ document.getElementById("content").innerHTML=`<div class="top"><div><h1>Wochenabgaben</h1><div class="muted">Aktuelle Woche: ${w}</div></div><div><span class="muted">Öffentlich bearbeitbar</span> <button class="primary" onclick="openEntry()">+ Wochenabgabe</button></div></div>
+ <div class="cards"><div class="card"><div class="muted">Gesamt</div><div class="num">${x.length}</div></div>
+ <div class="card"><div class="muted green">Metall abgegeben</div><div class="num green">${x.filter(e=>e.status==="done").length}</div></div>
+ <div class="card"><div class="muted red">Nicht abgegeben</div><div class="num red">${x.filter(e=>e.status==="missing").length}</div></div>
+ <div class="card"><div class="muted yellow">Freigestellt</div><div class="num yellow">${x.filter(e=>e.status==="free").length}</div></div></div>
+ <div class="panel"><h2>Aktuelle Woche</h2>${await rows(x)}</div>`;
+}
+async function abgaben(){
+ document.getElementById("content").innerHTML=`<div class="panel"><div class="empty">Lade Daten…</div></div>`;
+ allEntries=await getEntries();
+ let ws=[...new Set(allEntries.map(e=>e.week))].sort().reverse();if(!ws.includes(currentWeek()))ws.unshift(currentWeek());
+ document.getElementById("content").innerHTML=`<div class="top"><div><h1>Wochenabgaben</h1><div class="muted">Alle Besucher können Abgaben sehen und bearbeiten.</div></div><button class="primary" onclick="openEntry()">+ Wochenabgabe</button></div>
+ <div class="panel"><div class="toolbar"><select id="weekSel" onchange="filterTable()">${ws.map(w=>`<option>${esc(w)}</option>`).join("")}</select><select id="statusSel" onchange="filterTable()"><option value="">Alle Status</option><option value="done">Metall abgegeben</option><option value="missing">Nicht abgegeben</option><option value="free">Freigestellt</option></select><input id="search" oninput="filterTable()" placeholder="Mitarbeiter suchen…"></div><div id="table"></div></div>`;
+ filterTable();
+}
+async function filterTable(){
+ let a=allEntries,w=document.getElementById("weekSel").value,s=document.getElementById("statusSel").value,q=document.getElementById("search").value.toLowerCase();
+ document.getElementById("table").innerHTML=await rows(a.filter(e=>e.week===w&&(!s||e.status===s)&&String(e.name||"").toLowerCase().includes(q)));
+}
+async function mitarbeiter(){
+ document.getElementById("content").innerHTML=`<div class="panel"><div class="empty">Lade Mitarbeiter…</div></div>`;
+ let x=await getEmployees();
+ document.getElementById("content").innerHTML=`<div class="top"><div><h1>Mitarbeiter</h1><div class="muted">Mitarbeiter unabhängig von Wochenabgaben verwalten</div></div><button class="primary" onclick="openEmployee()">+ Mitarbeiter</button></div>
+ <div class="panel">${x.length?`<table><thead><tr><th>Mitarbeiter</th><th>Char-ID</th><th>Aktionen</th></tr></thead><tbody>${x.map(e=>`<tr><td><b>${esc(e.name)}</b></td><td>${esc(e.char_id||"–")}</td><td><div class="actions"><button onclick="openEmployee('${e.id}')">Bearbeiten</button><button onclick="delEmployee('${e.id}')">Löschen</button></div></td></tr>`).join("")}</tbody></table>`:'<div class="empty">Noch keine Mitarbeiter vorhanden.</div>'}</div>`;
+}
+
+async function delEmployee(id){
+ if(!confirm("Mitarbeiter wirklich löschen?"))return;
+ const r=await sb.from("mitarbeiter").delete().eq("id",id);
+ if(r.error)alert(r.error.message);else render();
+}
+
+async function historie(){
+ document.getElementById("content").innerHTML=`<div class="panel"><div class="empty">Lade Daten…</div></div>`;
+ let a=await getEntries(),ws=[...new Set(a.map(e=>e.week))].sort().reverse();
+ document.getElementById("content").innerHTML=`<div class="top"><div><h1>Historie</h1><div class="muted">Vergangene Wochen bleiben gespeichert.</div></div></div><div class="panel">${ws.length?`<table><thead><tr><th>Woche</th><th>Gesamt</th><th>Abgegeben</th><th>Nicht abgegeben</th><th>Freigestellt</th></tr></thead><tbody>${ws.map(w=>{let x=a.filter(e=>e.week===w);return`<tr><td><b>${esc(w)}</b></td><td>${x.length}</td><td class="green">${x.filter(e=>e.status==="done").length}</td><td class="red">${x.filter(e=>e.status==="missing").length}</td><td class="yellow">${x.filter(e=>e.status==="free").length}</td></tr>`}).join("")}</tbody></table>`:'<div class="empty">Noch keine Historie.</div>'}</div>`;
+}
+
+async function getEmployees(){
+  const r=await sb.from("mitarbeiter").select("*").order("name");
+  if(r.error){showError(r.error.message);return []}
+  return r.data||[];
+}
+
+async function openEmployee(id){
+  let e=null;
+  if(id){
+    const r=await sb.from("mitarbeiter").select("*").eq("id",id).single();
+    if(r.error)return alert(r.error.message);
+    e=r.data;
+  }
+  document.getElementById("modalBox").innerHTML=`<h2>${e?"Mitarbeiter bearbeiten":"Neuer Mitarbeiter"}</h2>
+  <div class="grid">
+    <input id="eName" class="full" placeholder="Mitarbeitername" value="${esc(e?.name||"")}" autocomplete="off">
+    <input id="eChar" class="full" placeholder="Charakter-ID" value="${esc(e?.char_id||"")}" autocomplete="off">
+    <div class="full" style="display:flex;justify-content:flex-end;gap:8px">
+      <button onclick="closeModal()">Abbrechen</button>
+      <button class="primary" onclick="saveEmployee('${e?.id||""}')">Speichern</button>
+    </div>
+  </div>`;
+  document.getElementById("modal").classList.add("show");
+  setTimeout(()=>document.getElementById("eName").focus(),50);
+}
+
+async function saveEmployee(id){
+  const name=document.getElementById("eName").value.trim();
+  const char_id=document.getElementById("eChar").value.trim()||null;
+  if(!name)return alert("Bitte Mitarbeiternamen eingeben.");
+  const o={name,char_id};
+  const r=id
+    ? await sb.from("mitarbeiter").update(o).eq("id",id)
+    : await sb.from("mitarbeiter").insert(o);
+  if(r.error)return alert(r.error.message);
+  closeModal();render();
+}
+
+async function openEntry(id){
+ let e=null;
+ if(id){
+   let r=await sb.from("abgaben").select("*").eq("id",id).single();
+   if(r.error)return alert(r.error.message);
+   e=r.data;
+ }
+ const employees=await getEmployees();
+ if(!employees.length && !e){
+   return alert("Bitte zuerst unter „Mitarbeiter“ einen Mitarbeiter anlegen.");
+ }
+ document.getElementById("modalBox").innerHTML=`<h2>${e?"Abgabe bearbeiten":"Neue Wochenabgabe"}</h2>
+ <div class="grid">
+ <select id="mEmployee" class="full" aria-label="Mitarbeiter auswählen">${employees.map(p=>`<option value="${p.id}" data-name="${esc(p.name)}" data-char="${esc(p.char_id||"")}">${esc(p.name)}${p.char_id?` — ${esc(p.char_id)}`:""}</option>`).join("")}</select>
+ <select id="mStatus"><option value="done">Metall abgegeben</option><option value="missing">Nicht abgegeben</option><option value="free">Freigestellt</option></select>
+ <input id="mWeek" placeholder="Woche" value="${esc(e?.week||currentWeek())}">
+ <input id="mAmount" type="number" min="0" step="1" placeholder="Metall in Stück" value="${e?.amount??""}">
+ <textarea class="full" id="mNote" placeholder="Notiz">${esc(e?.note||"")}</textarea>
+ <div class="full" style="display:flex;justify-content:flex-end;gap:8px"><button onclick="closeModal()">Abbrechen</button><button class="primary" onclick="saveEntry('${e?.id||""}')">Speichern</button></div>
+ </div>`;
+ if(e){
+   const sel=document.getElementById("mEmployee");
+   const match=[...sel.options].find(o=>o.textContent.startsWith(e.name));
+   if(match)sel.value=match.value;
+ }
+ document.getElementById("mStatus").value=e?.status||"done";
+ document.getElementById("modal").classList.add("show");
+ setTimeout(()=>document.getElementById("mEmployee").focus(),50);
+}
+
+async function saveEntry(id){
+ const employeeId=document.getElementById("mEmployee").value;
+ const employeeOption=document.querySelector(`#mEmployee option[value="${CSS.escape(employeeId)}"]`);
+ if(!employeeOption)return alert("Bitte Mitarbeiter auswählen.");
+ const name=employeeOption.dataset.name;
+ const char_id=employeeOption.dataset.char||null;
+ const o={
+   name,
+   char_id,
+   status:document.getElementById("mStatus").value,
+   week:document.getElementById("mWeek").value.trim()||currentWeek(),
+   amount:Number(document.getElementById("mAmount").value)||0,
+   note:document.getElementById("mNote").value.trim()||null,
+   edited_by:"Öffentlich"
+ };
+ const r=id?await sb.from("abgaben").update(o).eq("id",id):await sb.from("abgaben").insert(o);
+ if(r.error)return alert(r.error.message);
+ closeModal();render();
+}
+async function delEntry(id){
+ if(!confirm("Eintrag wirklich löschen?"))return;
+ let r=await sb.from("abgaben").delete().eq("id",id);if(r.error)alert(r.error.message);else render();
+}
+function closeModal(){document.getElementById("modal").classList.remove("show")}
+document.getElementById("modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
+app();
+</script>
+</body>
+</html>
